@@ -13,6 +13,7 @@ import csv
 import json
 import numpy as np
 import torch
+import sys
 import random
 
 
@@ -68,9 +69,7 @@ class RecallEvaluator(SentenceEvaluator):
         print(f"Average Recall@{self.k}: {average_recall:.2f}")
         print("----------------")
 
-        #if self.output_path:
-         #   with open(self.output_path, 'a') as f:  # Open file in append mode
-          #      f.write(f"Epoch: {epoch}, Steps: {steps}, Average Recall@{self.k}: {average_recall:.2f}\n")
+        
         return average_recall
 
 
@@ -101,9 +100,7 @@ def make_samples(file):
             samples.append(InputExample(texts=[sentence1, passage_text], label=label))
 
     selected_samples = random.sample(samples, selected_number)
-    print(len(samples))
-    print(has_ev)
-    print('----------------')
+   
     return samples ,selected_samples
 
 def make_samples_dev(file):
@@ -149,7 +146,7 @@ def custom_collate(batch):
 
 def make_samples_test(file):
     samples = []
-    #threshold=0.1
+    
     
     for sample in file:
         try:
@@ -159,9 +156,7 @@ def make_samples_test(file):
             if len(sample["selected_evidences"])>0:
                 first_key = next(iter(sample["selected_evidences"]))
                 value = sample["selected_evidences"][first_key]
-                print(value)
-                #if value<threshold:
-                    #first_key = ""
+                
             else:
                 first_key = ""
             if first_key=="":
@@ -179,7 +174,7 @@ def make_samples_test(file):
     return samples
 
 
-def train():
+def train(model_save_path, train_path, dev_path):
     #### Just some code to print debug information to stdout
     logging.basicConfig(format='%(asctime)s - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S',
@@ -192,20 +187,17 @@ def train():
     logger.info("Read train dataset")
 
     
-    train_path = "/home/jparastoo/downloads/ODQA/data/SQUAD/train_evidence_scored.json"
-    dev_path = "/home/jparastoo/downloads/ODQA/data/SQUAD/dev_evidence_scored_msmarco.json"
-
+    
     train_f = json.load(open(train_path,'r'))
     dev_f = json.load(open(dev_path,'r'))
 
 
-    train_samples,train_selected = make_samples(train_f)
+    train_samples, train_selected = make_samples(train_f)
     dev_samples = make_samples_dev(dev_f)
 
     train_batch_size = 16
     num_epochs = 1
-    model_save_path = "/home/jparastoo/downloads/ODQA/model/SQUAD_Reranker-ms-marco-MiniLM-L-6-v2-1000step"
-
+    
     #Define our CrossEncoder model. We use distilroberta-base as basis and setup it up to predict 3 labels
 
     model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2',num_labels=1,max_length=512)
@@ -214,7 +206,6 @@ def train():
 
     #During training, we use CESoftmaxAccuracyEvaluator to measure the accuracy on the dev set.
     
-    log_path = "/home/jparastoo/downloads/ODQA/model/SQUAD_Reranker_QE_binary_msmarco/eval.txt"
     recall_evaluator = RecallEvaluator(dev_samples, k=10, name='dev-evaluator')
 
 
@@ -232,16 +223,14 @@ def train():
 
     
 
-def test():
+def test(model_path, test_path, out_file_path):
+    if not os.path.exists(model_path):
+        print(f"Error: Model path '{model_path}' does not exist.")
+        return
     test_batch_size = 100
-    threshold = 0.1
-    out_file_path = "/home/jparastoo/downloads/ODQA/Final_data/TQA/mss/trained-ms-marco-MiniLM-1000-nothreshold-scored.json"
-    model = CrossEncoder('/home/jparastoo/downloads/ODQA/model/TQA_Reranker_QE_binary_ms-marco-MiniLM-L-6-v2-1000step-with')
-   
-
-
-    test_path= "/home/jparastoo/downloads/UPR/unsupervised-passage-reranking/downloads/data/retriever-outputs/mss/trivia-test-passage-evidence.json"
     
+    model = CrossEncoder(model_path)
+   
     test_f = json.load(open(test_path,'r'))
     
     test_samples = make_samples_test(test_f)
@@ -282,6 +271,35 @@ def test():
     with open(out_file_path,'w') as f:
         json.dump(data,f, indent=2)
 
+def construct_paths(dataset_name, retriever_name):
+    base_path = "../"
+    data_base = f"{base_path}/data/{dataset_name}"
+    model_save_base = f"{base_path}/model/{dataset_name}_Reranker"
 
-train()
-test()
+    paths = {
+        "train": f"{data_base}/processed_train.json",
+        "dev": f"{data_base}/processed_train.json",
+        "test": f"{data_base}/{retriever_name}/test-passage-evidence.json",  # Adjust path for test data
+        "model_save": model_save_base,
+        "out_file": f"{data_base}/{retriever_name}/trained-ms-marco-MiniLM-1000-nothreshold-scored.json"
+    }
+    return paths
+
+
+def main():
+    if len(sys.argv) != 4:
+        print("Usage: python script.py <train/test> <dataset_name> <retriever_name>")
+        return
+
+    mode, dataset_name, retriever_name = sys.argv[1], sys.argv[2], sys.argv[3]
+    paths = construct_paths(dataset_name, retriever_name)
+
+    if mode == "train":
+        train(paths["model_save"], paths["train"], paths["dev"])
+    elif mode == "test":
+        test(paths["model_save"], paths["test"], paths["out_file"])
+    else:
+        print("Invalid mode. Choose 'train' or 'test'.")
+
+if __name__ == "__main__":
+    main()

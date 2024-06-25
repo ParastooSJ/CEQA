@@ -13,8 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
-#distilroberta-base
-#model = SentenceTransformer('sentence-transformers/msmarco-distilbert-dot-v5').to(device)
+
 model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2').to(device)
 class DataPrep():
 
@@ -96,52 +95,51 @@ def process_line(line,count):
     print(count)
     return finilized_sample
     
-    
-file_count = 0
-file_path = '/home/jparastoo/downloads/ODQA/data/SQUAD/train_evidence.json'
-file_path_w = '/home/jparastoo/downloads/ODQA/data/SQUAD/train_evidence_scored.json'
 
-file_r = json.load(open(file_path, mode='r'))
+def main(dataset_name):
+    input_path = f'../data/{dataset_name}/processed_train.json'
+    output_path = f'../data/{dataset_name}/train_evidence_scored.json'
 
+    with open(input_path, 'r') as file_r:
+        data = json.load(file_r)
 
-count = 0
-final_result = []
+    count = 0
+    final_result = []
 
-# Define the number of threads to use
-num_threads = 100
+    num_threads = 100
 
-# Use ThreadPoolExecutor to process lines in parallel
-with ThreadPoolExecutor(max_workers=num_threads) as executor:
-    # List to store the futures
-    futures = []
-    for line in file_r:
-        try:
-            count += 1
-            if count>file_count:
-                
-                print(count)
-                future = executor.submit(process_line, line,count)
-                futures.append(future)
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        futures = []
+        for line in data:
+            try:
+                count += 1
+                if count > file_count:
+                    future = executor.submit(process_line, line, count)
+                    futures.append(future)
 
-            if count>=file_count+90000:
+                if count >= file_count + 90000:
                     break
-            
-        except:
-            print('error')
-        
-    # Wait for all the threads to complete
-    for future in concurrent.futures.as_completed(futures):
-        #try:
-            result = future.result()
-            final_result.append(result)
-        #except:
-            
-        
-        
 
-with open(file_path_w,'w') as f:
-    json.dump(final_result,f,indent=2)
+            except Exception as e:
+                print(f'Error processing line {count}: {e}')
+
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                result = future.result()
+                final_result.append(result)
+            except Exception as e:
+                print(f'Error processing future: {e}')
+
+    with open(output_path, 'w') as f:
+        json.dump(final_result, f, indent=2)
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python score_evidence.py <dataset_name>")
+        sys.exit(1)
     
+    dataset_name = sys.argv[1]
+    main(dataset_name)
 
 
 
