@@ -21,7 +21,9 @@ python evidence_ranker.py test <dataset_name> <retriever_name>
 python PassageRankerModel.py test {dataset_name} {retriever_name}
 ```
 4. To generate the Input file for Generative evidence-based Reader, run the following command:
-```python prepare_fid_input.py {dataset_name} {retriever_name}```
+```
+python prepare_fid_input.py {dataset_name} {retriever_name}
+```
 5. After the input files are prepared, run the following commands to generate the answers for the selected dataset.
 ```
 mkdir FiD
