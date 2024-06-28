@@ -165,7 +165,7 @@ def construct_paths(dataset_name, retriever_name):
         "dev": f"{data_base}/processed_train.json",
         "test": f"{data_base}/{retriever_name}/test-passage-evidence.json",  # Adjust path for test data
         "model_save": model_save_base,
-        "out_file": f"{data_base}/{retriever_name}/trained-ms-marco-MiniLM-1000-nothreshold-ranked.json"
+        "out_file": f"{data_base}/{retriever_name}/test-passage-evidence-ranked.json"
     }
     return paths
 
